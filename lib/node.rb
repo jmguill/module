@@ -21,6 +21,7 @@ class Node
     @time = sanitize_string time
     @hash = Digest::MD5.hexdigest(uid + balance.to_s + HASH_SALT + Time.now.to_s)
     @reports = []
+    @authenticated = false
     log "Node created with uid '#{uid}' and initial balance of #{balance} at #{Time.now}"
     log "Node hash is #{@hash}"
     save_node
@@ -28,10 +29,8 @@ class Node
 
   def auth_node(auth_string)
     input = sanitize_string auth_string
-    if input == @hash
-      true
-    elsif input == @time
-      true
+    if input == @hash or input == @time
+      @authenticated = true
     else
       log "Node authentication failed with authentication string: #{input} at #{Time.now}"
       save_node
