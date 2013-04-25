@@ -5,6 +5,7 @@ require 'digest/md5'
 class Node
   NODE_STORAGE_LOCATION = "/tmp/nodes/"
   HASH_SALT = 'MD5 is a one-way hashing algorithm for creating digest signatures of strings'
+  REPORT_STALENESS = 5 * 25 * 60 * 60
 
   def self.load_node(uid)
     File.open(NODE_STORAGE_LOCATION + uid.to_s, 'r') { |file|
@@ -12,13 +13,14 @@ class Node
     }
   end
 
-  attr_reader :uid, :balance
+  attr_reader :uid, :balance, :time, :hash, :reports
   def initialize(uid, balance = 0, time = nil)
     @log = ""
     @uid = sanitize_string uid
     @balance = sanitize_number balance
     @time = sanitize_string time
     @hash = Digest::MD5.hexdigest(uid + balance.to_s + HASH_SALT + Time.now.to_s)
+    @reports = []
     log "Node created with uid '#{uid}' and initial balance of #{balance} at #{Time.now}"
     log "Node hash is #{@hash}"
     save_node
@@ -35,6 +37,21 @@ class Node
       save_node
       false
     end
+  end
+
+  def append_report(report_name, report_id, date)
+    @reports << {:report_name => report_name, :report_id => report_id, :date => date}
+    save_node
+  end
+
+  def get_report_history
+    history_string = ""
+    @reports.each { |report|
+      if Time.now - report[:date] < REPORT_STALENESS
+        history_string << "Report for #{report[:report_name]} created on #{report[:date]}: #{report[:report_id]}\n"
+      end
+    }
+    history_string
   end
 
   def credit_node(amount, reason = nil)
@@ -58,7 +75,7 @@ class Node
   end
 
   def save_node
-    File.open(NODE_STORAGE_LOCATION + @uid.to_s, 'w') { |file|
+    File.open(NODE_STORAGE_LOCATION + @hash.to_s, 'w') { |file|
       file.puts YAML::dump(self)
     }
   end
@@ -76,11 +93,19 @@ class Node
   end
 
   def sanitize_string(input)
-    input.gsub(/[^0-9a-z :]/i, '')
+    if input.class == String
+      input.gsub(/[^0-9a-z :]/i, '')
+    else
+      input
+    end
   end
 
   def sanitize_number(input)
-    input.gsub(/[^0-9]/i, '')
+    if input.class == String
+      input.gsub(/[^0-9]/i, '')
+    else
+      input
+    end
   end
 
 end
